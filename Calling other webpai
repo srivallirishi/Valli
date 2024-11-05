@@ -1,0 +1,67 @@
+1:Creating Request Model
+public class UserAuthorizationRequest
+{
+    public string UserId { get; set; }
+}
+2:Set up HttpClient
+in program.cs
+builder.Services.AddHttpClient();
+3:Implement MediatR and CQRS: Create a command and handler for the authorization request
+public class AuthorizeUserCommand : IRequest<UserRolesResponse>
+{
+    public string UserId { get; set; }
+}
+
+public class AuthorizeUserHandler : IRequestHandler<AuthorizeUserCommand, UserRolesResponse>
+{
+    private readonly HttpClient _httpClient;
+
+    public AuthorizeUserHandler(HttpClient httpClient)
+    {
+        _httpClient = httpClient;
+    }
+
+    public async Task<UserRolesResponse> Handle(AuthorizeUserCommand request, CancellationToken cancellationToken)
+    {
+        var response = await _httpClient.PostAsJsonAsync("https://otherapi.example.com/authorize", new UserAuthorizationRequest { UserId = request.UserId });
+
+        if (response.IsSuccessStatusCode)
+        {
+            return await response.Content.ReadFromJsonAsync<UserRolesResponse>();
+        }
+
+        return null;
+    }
+}
+4:Set up the Controller
+Set Up the Controller: Use MediatR to handle the request in your controller.
+[ApiController]
+[Route("api/[controller]")]
+public class UsersController : ControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public UsersController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpPost("authorize")]
+    public async Task<IActionResult> AuthorizeUser([FromBody] AuthorizeUserCommand command)
+    {
+        var roles = await _mediator.Send(command);
+        if (roles != null)
+        {
+            return Ok(roles);
+        }
+
+        return Unauthorized();
+    }
+}
+5:Handle the Response
+public class UserRolesResponse
+{
+    public List<string> Roles { get; set; }
+}
+
+
